@@ -1,0 +1,243 @@
+---
+title: "EMSHS package for Bayesian Shrinkage Model using Structural Information in R"
+author: "Changgee Chang, Praveen Suthaharan, Suprateek Kundu, and Qi Long"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    number_sections: true
+vignette: >
+  %\VignetteEngine{knitr::knitr}
+  %\VignetteIndexEntry{Title of your vignette}
+  %\usepackage[UTF-8]{inputenc}
+abstract: "The package EMSHS implements a scalable, yet adaptive Bayesian shrinkage approach that exploits the prior network information for improved variable selection and prediction. We attempt to simplify the understanding of this package using a hypothetical, high-dimensional data with $n = 25$ observations and $p = 50$ predictors in R."
+references:
+- id: Article
+  title: Scalable Bayesian Variable Selection for Structured High-dimensional Data
+  author:
+  - family: Chang
+    given: Changgee
+  - family: Kundu
+    given: Suprateek
+  - family: Long
+    given: Qi
+  URL: 'https://onlinelibrary.wiley.com/doi/pdf/10.1111/biom.12882'
+  DOI: 10.1111/biom.12882
+  publisher: Biometrics
+  page: 1-27
+  type: article-journal
+  issued:
+    year: 2018
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+This vignette is written as a supplementary documentation to @Article in hopes of providing a more visual understanding for the motivation of our work to develop a scalable structured variable selection approach. We use R code from the **E**xpectation **M**aximization estimator for bayesian **SH**rinkage approach with **S**tructural information incorporated EMSHS package to illustrate this approach - in both the absence and presence of graph information - on high-dimensional data from a hypothetical cancer genomics example.
+
+The rest of the vignette is organized as follows. We introduce a hypothetical cancer genomics example in section 2, the EM estimator for Bayesian Shrinkage approach in the *absence* of graph information in section 2.1, the EM estimator for Bayesian Shrinkage approach in the *presence* of graph information in section 2.2, and concluding remarks about the EMSHS package in section 3.
+
+
+
+
+
+# Example
+
+Microarray analysis and next generation sequencing in genomics yield increasingly large amounts of data containing more than tens of thousands of variables. In genomics studies, it is common to collect gene expressions from $p$ $\approx$ 20,000 genes, which is often considerably larger than the number of subjects ($n$) in these studies, resulting in a classical small $n$ large $p$ problem.
+
+Here, we present a hypothetical cancer genomics microarray example to elucidate the explanation of the EMSHS package. Our hypothetical example is as follows: 
+
+
+*As a group of cancer research scientists, we are interested in identifying which set of human genes has a significant impact on the risk for developing a specific breast cancer. We peruse through a genomics data set and become dumbfounded by how big the data is - 20,000 human genes in a series of 100 primary breast cancers. We hear about this scalable, adaptive Bayesian shrinkage approach that we can possibly implement to more robustly select the variables (i.e., the human genes) that are most significant. We load in the EMSHS package and perform our analysis.*
+
+As you can see, we are dealing with a classical small $n$ large $p$ problem, where $n$ = 100 primary breast cancers and $p$ = 20,000 human genes. For simplicity, we will consider a smaller $n$ and $p$: $n$ = 25 primary breast cancers and $p$ = 50 human genes.
+
+We now present our EMSHS function which has the following input parameters
+
+```{r EMSHS}
+  EMSHS <- function(y,X,mus,nu,E=NULL,
+                    a_sigma=1,b_sigma=1,a_omega=2,b_omega=1,
+                    w=1,eps=1e-5){}
+```
+
+where the input parameter - $X$ - can be initialized based on our aforementioned observations ($n$ = 25) and predictors ($p$ = 50). We generate y as $X*B + e$, where $B$ represents our sparse true beta matrix and $e$ represents the error term. Additionally, we can initialize our shrinkage and adaptivity parameters, *mus* and *nu*, respectively. Although our function accepts a vector of shrinkage parameters, for our example, we will use a single value for mus. Our goal is to produce estimated betas($\hat{B}$) that are close to our true beta ($B$)
+
+```{r EMSHS1}
+ set.seed(100)
+
+  X <- matrix(rnorm(25*50), ncol = 50) # An n by p design matrix
+  B <- matrix(c(1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,0,0,0,0,0), ncol = 1) # True beta
+  e <- matrix(rnorm(25*1), ncol = 1) # error
+  y <- matrix(X %*% B + e, ncol = 1) # An n by 1 response vector
+  mus <- 2.3 # The shrinkage parameter
+  nu <- 0.3 # The adaptivity parameter
+```
+
+
+## EM Estimator: Absence of Graph Information
+
+Let's first consider the case where we are unaware of any structural graph information among the $p$ = 50 human genes. Therefore, we would initialize the following parameters with the default values
+
+```{r EMSHS2}
+  E <- NULL # An e by 2 matrix of edges. NULL implies there are no edges
+
+  a_sigma <- 1 # The shape parameter of the prior for residual variance
+  b_sigma <- 1 # The rate parameter of the prior for residual variance
+  a_omega <- 2 # The shape parameter of the prior for nonzero omega values
+  b_omega <- 1# The rate parameter of the prior for nonzero omega values
+
+  w <- 1 # A weight vector for samples
+  eps <- 1e-5 # The algorithm stops if relative improvement goes below eps
+```
+
+where E is set to NULL, suggesting that there are no prior graph information of connections among predictors (i.e., certain human genes are not linked or correlated with other human genes for measuring the risk of primary breast cancer, in this context), the shape parameters - *a\_sigma* and *a\_omega* - and rate parameters - *b\_sigma* and *b\_omega* - are set to the above default values because we have no specific prior distribution of the connectivity of the predictors (i.e., genes), the weight vector w is is set to 1 because we are considering that all predictors (i.e., human genes) are as significant as the other predictors (i.e., human genes) in our data, and eps is set to $1e{-}5$.
+
+```{r fig1, echo=FALSE, fig.align = "center", fig.cap="**Figure 1. Unstructured graph information**. This is a graphical visualization of unstructured nodes (i.e., $p$ = 50 human genes) with no prior information of connections among the genes.", out.width = '40%'}
+knitr::include_graphics("graph.png")
+```
+
+Figure 1 depicts an unstructured graph of $p$ = 50 human genes. We now run our EMSHS function for unstructured graph information
+
+```{r EMSHS3}
+  em_no_edge <- EMSHS(y,X,mus,nu,E=NULL,
+                    a_sigma=1,b_sigma=1,a_omega=2,b_omega=1,
+                    w=1,eps=1e-5)
+```
+
+```{r, echo=FALSE, code=readLines("EMSHS.R")}
+```
+
+```{r, echo=FALSE, code=readLines("DWL.R")}
+```
+
+```{r EMSHS4, echo=FALSE}
+  set.seed(100)
+
+  X <- matrix(rnorm(25*50), ncol = 50) # An n by p design matrix
+  B <- matrix(c(1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                0,0,0,0,0,0,0,0,0,0), ncol = 1) # True beta
+  e <- matrix(rnorm(25*1), ncol = 1) # error
+  y <- matrix(X %*% B + e, ncol = 1) # An n by 1 response vector
+  mus <- 2.3 # The shrinkage parameter
+  nu <- 0.3 # The adaptivity parameter
+
+em_no_edge <- EMSHS(y,X,mus,nu,E=NULL,
+                    a_sigma=1,b_sigma=1,a_omega=2,b_omega=1,
+                    w=1,eps=1e-5)
+
+```
+
+and obtain the following outputs - *niter*, *beta*, *sigma*, *lambda*, and *omega*. As stated previously, we are interested in generating $\hat{B}$'s that are close to our sparse true $B$'s. Thus, in this documentation, we will focus on the *beta* output. Refer to @Article for information about the other outputs.
+
+We begin to extrapolate the beta output of the \pkg{EMSHS} function in hopes of concluding interesting information among the human genes and the risk for primary breast cancer.
+
+```{r EMSHS5}
+em_no_edge$beta
+```
+
+Upon further scrutiny, we observe that there are some false negatives - gene 1, gene 2 - and false positives - gene 11, gene 34, gene 39, gene 49 - in our $\hat{B}$ matrix. That is, with no prior graph information, the function is incorrectly indicating that particular genes - gene 1, gene 2 - are not influencing the risk for a certain primary breast cancer when, in fact, those genes should have an influence. Also, the function is incorrectly indicating that particulars genes - gene 11, gene 34, gene 39, gene 49 - are influencing the risk for primary breast cancer when, in fact, those genes should have zero influence. For example, in our true beta matrix, genes 1 and 2 were assumed to have an influence (i.e., values were set to 1) on the risk for a certain primary breast cancer ($y$). However, our estimated beta matrix shows that genes 1 and 2 do not have an influence, suggesting the presence of false negatives. Likewise, genes 10, 34, and 38 were assumed to have no influence (i.e., values were set to 0) on the risk for a certain primary breast cancer. However, our estimated beta matrix shows that genes 10, 34, and 38, do indeed, have an influence, suggesting the presence of false positives. To minimize this paradox, we will incorporate graph information and highlight the robustness of the \pkg{EMSHS} function.
+
+
+
+## EM Estimator: Presence of Graph Information
+
+Until now, we have discussed the case where we were limited in our knowledge of any structure among the genes. Let's now consider the case where we are aware of structural graph information among the $p$ = 50 human genes. We observe a structure as illustrated in Figure 2. From this, we construct an E matrix of edges that represent the interactions among the genes.
+
+```{r fig2, echo=FALSE, fig.align = "center", fig.cap="**Figure 2. Structured graph information**. This is a graphical visualization - represented in a structural (a) and circular (b) layout - of nodes (i.e., significant genes) with prior information of edges (i.e., significant connections). Here, we can leverage the association structure of the genes and produce biologically meaningful outcomes, and lead to improvements in prediction and variable selection.", out.width = '55%'}
+knitr::include_graphics("structured_layouts.png")
+```
+
+Now that we have constructed our E matrix, we can run our EMSHS function with our structural information.
+
+```{r EMSHS6}
+  em_edge <- EMSHS(y,X,mus,nu,E,
+                    a_sigma=1,b_sigma=1,a_omega=2,b_omega=1,
+                    w=1,eps=1e-5)
+```
+
+We begin exploring the output given the structural information of the human genes. We see that we have removed the false negatives and minimized the amount of false positives as a result of our graph information, highlighting the robustness of variable selection invoked by the EMSHS function.
+
+
+```{r EMSHS7, echo=FALSE}
+
+
+
+    X <- matrix(rnorm(25*50), ncol = 50)
+    B <- matrix(c(1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                  0,0,0,0,0,0,0,0,0,0), ncol = 1)
+    e <- matrix(rnorm(25*1), ncol = 1)
+    y <- matrix(X %*% B + e, ncol = 1)
+    mus <- 2.3
+    nu <- 0.3
+    EE <- matrix(c(1,4,
+                   4,1,
+                   1,2,
+                   2,1,
+                   1,5,
+                   5,1,
+                   2,3,
+                   3,2,
+                   3,5,
+                   5,3,
+                   10,11,
+                   11,10,
+                   19,11,
+                   11,19,
+                   36,35,
+                   35,36,
+                   31,35,
+                   35,31,
+                   31,22,
+                   22,31,
+                   22,45,
+                   45,22,
+                   45,32,
+                   32,45,
+                   22,21,
+                   21,22,
+                   31,21,
+                   21,31,
+                   21,25,
+                   25,21,
+                   21,18,
+                   18,21,
+                   18,49,
+                   49,18,
+                   49,47,
+                   47,49,
+                   47,37,
+                   37,47,
+                   37,21,
+                   21,37,
+                   18,25,
+                   25,18), nrow = 42, ncol = 2, byrow = TRUE)
+
+    # Sort edges by first column then second column
+
+    E <- EE[do.call(order, lapply(1:ncol(EE), function(i) EE[,i])),]
+
+    em_edge <- EMSHS(y, X, mus, nu, E,
+                     a_sigma = 1, b_sigma = 1, a_omega = 2, b_omega = 1,
+                     w = 1, eps = 1e-5)
+```
+
+```{r EMSHS8}
+em_edge$beta
+```
+
+
+
+
+# Conclusion
+
+This vignette is designed to help the user of the EMSHS package more readily execute the code to achieve good variable selection, prediction and computational scalability within high-dimensional settings. For a more technical review of this scalable, adaptive Bayesian shrinkage approach, refer to @Article.
+
+
+# References
+
